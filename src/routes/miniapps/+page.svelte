@@ -289,36 +289,6 @@
         color: var(--ink);
     }
 
-    .header-right {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .connect-btn {
-        background: linear-gradient(130deg, var(--accent), var(--accent-mid));
-        color: #fff;
-        border: none;
-        border-radius: var(--radius-pill);
-        padding: 8px 18px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        transition: opacity 0.15s;
-    }
-
-    .connect-btn:hover:not(:disabled) {
-        opacity: 0.85;
-    }
-
-    .connect-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
     .user-chip {
         display: flex;
         align-items: center;
@@ -333,75 +303,6 @@
             border-color 0.15s,
             background 0.15s;
         position: relative;
-    }
-
-    .user-chip:hover,
-    .user-chip.open {
-        border-color: var(--line);
-        background: var(--bg-a);
-    }
-
-    .avatar-img-wrap {
-        width: 26px;
-        height: 26px;
-        border-radius: 50%;
-        overflow: hidden;
-        flex-shrink: 0;
-        background: var(--line-soft);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .avatar-img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    .avatar-placeholder {
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--muted);
-        line-height: 1;
-    }
-
-    .user-name {
-        font-size: 13px;
-        font-weight: 500;
-        color: var(--ink);
-        max-width: 140px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .logout-btn {
-        background: none;
-        border: none;
-        border-left: 1px solid var(--line);
-        padding: 2px 0 2px 10px;
-        margin-left: 2px;
-        font-size: 13px;
-        font-weight: 500;
-        color: var(--muted);
-        cursor: pointer;
-        white-space: nowrap;
-        transition: color 0.15s;
-    }
-
-    .logout-btn:hover {
-        color: var(--ink);
-    }
-
-    .btn-spinner {
-        display: inline-block;
-        width: 11px;
-        height: 11px;
-        border: 2px solid rgba(255, 255, 255, 0.35);
-        border-top-color: #fff;
-        border-radius: 50%;
-        animation: spin 0.7s linear infinite;
     }
 
     .app-grid {

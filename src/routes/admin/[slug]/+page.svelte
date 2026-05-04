@@ -7,6 +7,13 @@
 	const baseUrl = import.meta.env.VITE_BASE_URL;
 	import { wallet } from '$lib/wallet.svelte.ts';
 	import ApprovalPopup from '$lib/ApprovalPopup.svelte';
+	import {
+		truncateAddr,
+		getAvatarInitial as _getAvatarInitial,
+		createMessageHandler,
+		createApprovalHandlers,
+		type PendingRequest
+	} from '$lib/iframeHost.ts';
 
 	type MiniApp = { slug?: string; name: string; logo: string; url: string; description?: string; tags: string[]; isHidden?: boolean; category?: string };
 
@@ -25,34 +32,11 @@
 	// pendingSource is kept outside $state to avoid Svelte proxying the cross-origin Window object,
 	// which triggers "Blocked a frame from accessing a cross-origin frame".
 	let pendingSource: MessageEventSource | null = null;
-	let pendingRequest: {
-		kind: 'tx' | 'sign';
-		transactions?: any[];
-		message?: string;
-		signatureType?: 'erc1271' | 'raw';
-		requestId: string;
-	} | null = $state(null);
+	let pendingRequest: PendingRequest | null = $state(null);
 
 	let iframeEl: HTMLIFrameElement = $state() as HTMLIFrameElement;
 
-	function truncateAddr(addr: string): string {
-		return addr.slice(0, 6) + '...' + addr.slice(-4);
-	}
-
-	function getAvatarInitial(): string {
-		const name = wallet.avatarName;
-		if (name) return name.trim().charAt(0).toUpperCase();
-		return wallet.address ? wallet.address.slice(2, 4).toUpperCase() : '?';
-	}
-
-	/** Post a message to a cross-origin source window safely. */
-	function postTo(source: MessageEventSource | null, data: any) {
-		try {
-			(source as Window)?.postMessage(data, '*');
-		} catch {
-			// cross-origin access blocked — ignore
-		}
-	}
+	const getAvatarInitial = () => _getAvatarInitial(wallet.avatarName, wallet.address);
 
 	function postToIframe(data: any) {
 		try {
@@ -62,63 +46,11 @@
 		}
 	}
 
-	function handleMessage(event: MessageEvent) {
-		const { data } = event;
-		if (!data || !data.type) return;
-
-		switch (data.type) {
-			case 'request_address':
-				if (wallet.connected) {
-					postTo(event.source, { type: 'wallet_connected', address: wallet.address });
-				} else {
-					postTo(event.source, { type: 'wallet_disconnected' });
-				}
-				const raw = $page.url.searchParams.get('data');
-				if (raw) {
-					try {
-						postTo(event.source, { type: 'app_data', data: atob(raw) });
-					} catch {
-						postTo(event.source, { type: 'app_data', data: raw });
-					}
-				}
-				break;
-
-			case 'send_transactions':
-				if (!wallet.connected) {
-					postTo(event.source, { type: 'tx_rejected', reason: 'Wallet not connected', requestId: data.requestId });
-					return;
-				}
-				if (!data.transactions || !Array.isArray(data.transactions)) {
-					postTo(event.source, { type: 'tx_rejected', reason: 'No transactions provided', requestId: data.requestId });
-					return;
-				}
-				pendingSource = event.source;
-				pendingRequest = {
-					kind: 'tx',
-					transactions: data.transactions,
-					requestId: data.requestId
-				};
-				break;
-
-			case 'sign_message':
-				if (!wallet.connected) {
-					postTo(event.source, { type: 'sign_rejected', reason: 'Wallet not connected', requestId: data.requestId });
-					return;
-				}
-				if (!data.message) {
-					postTo(event.source, { type: 'sign_rejected', reason: 'No message provided', requestId: data.requestId });
-					return;
-				}
-				pendingSource = event.source;
-				pendingRequest = {
-					kind: 'sign',
-					message: data.message,
-					signatureType: data.signatureType === 'raw' ? 'raw' : 'erc1271',
-					requestId: data.requestId
-				};
-				break;
-		}
-	}
+	const handleMessage = createMessageHandler({
+		getAppData: () => $page.url.searchParams.get('data'),
+		setPending: (req) => { pendingRequest = req; },
+		setPendingSource: (s) => { pendingSource = s; }
+	});
 
 	onMount(() => {
 		window.addEventListener('message', handleMessage);
@@ -174,37 +106,12 @@
 	}
 
 
-	async function handleApprove(): Promise<string> {
-		if (!pendingRequest) return '';
-
-		if (pendingRequest.kind === 'tx') {
-			const hash = await wallet.sendTransactions(pendingRequest.transactions!);
-			postTo(pendingSource, { type: 'tx_success', hashes: [hash], requestId: pendingRequest.requestId });
-			pendingRequest = null;
-			pendingSource = null;
-			return hash;
-		}
-
-		if (pendingRequest.kind === 'sign') {
-			const { signature, verified } = pendingRequest.signatureType === 'raw'
-				? await wallet.signMessage(pendingRequest.message!)
-				: { signature: await wallet.signErc1271Message(pendingRequest.message!), verified: true };
-			postTo(pendingSource, { type: 'sign_success', signature, verified, requestId: pendingRequest.requestId });
-			pendingRequest = null;
-			pendingSource = null;
-			return signature;
-		}
-
-		return '';
-	}
-
-	function handleReject() {
-		if (!pendingRequest) return;
-		const rejectType = pendingRequest.kind === 'tx' ? 'tx_rejected' : 'sign_rejected';
-		postTo(pendingSource, { type: rejectType, reason: 'User rejected', requestId: pendingRequest.requestId });
-		pendingRequest = null;
-		pendingSource = null;
-	}
+	const { handleApprove, handleReject } = createApprovalHandlers({
+		getPending: () => pendingRequest,
+		getPendingSource: () => pendingSource,
+		setPending: (req) => { pendingRequest = req; },
+		setPendingSource: (s) => { pendingSource = s; }
+	});
 </script>
 
 <svelte:window onclick={handleWindowClick} />
@@ -296,157 +203,6 @@
 		padding: 12px 8px;
 		box-sizing: border-box;
 		overflow-x: hidden;
-	}
-
-	/* Topbar */
-	.iframe-topbar {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		flex-wrap: wrap;
-		gap: 12px;
-		padding-bottom: 12px;
-		border-bottom: 1px solid var(--line);
-		margin-bottom: 16px;
-		flex-shrink: 0;
-	}
-
-	.topbar-left {
-		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: 12px;
-	}
-
-	.back-btn {
-		background: none;
-		border: none;
-		color: var(--muted);
-		font-size: 14px;
-		font-weight: 500;
-		cursor: pointer;
-		padding: 0;
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		transition: color 0.15s;
-	}
-
-	.back-btn:hover {
-		color: var(--ink);
-	}
-
-	.header-right {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
-
-	.connect-btn {
-		background: linear-gradient(130deg, var(--accent), var(--accent-mid));
-		color: #fff;
-		border: none;
-		border-radius: var(--radius-pill);
-		padding: 8px 18px;
-		font-size: 14px;
-		font-weight: 600;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		transition: opacity 0.15s;
-	}
-
-	.connect-btn:hover:not(:disabled) {
-		opacity: 0.85;
-	}
-
-	.connect-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	/* User chip */
-	.user-chip {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 4px 10px 4px 4px;
-		border: 1px solid var(--line);
-		border-radius: var(--radius-pill);
-		background: var(--card);
-		cursor: pointer;
-		user-select: none;
-		transition: border-color 0.15s, background 0.15s;
-	}
-
-	.user-chip:hover,
-	.user-chip.open {
-		border-color: var(--line);
-		background: var(--bg-a);
-	}
-
-	.avatar-img-wrap {
-		width: 26px;
-		height: 26px;
-		border-radius: 50%;
-		overflow: hidden;
-		flex-shrink: 0;
-		background: var(--line-soft);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.avatar-img {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-	}
-
-	.avatar-placeholder {
-		font-size: 12px;
-		font-weight: 600;
-		color: var(--muted);
-		line-height: 1;
-	}
-
-	.user-name {
-		font-size: 13px;
-		font-weight: 500;
-		color: var(--ink);
-		max-width: 140px;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.logout-btn {
-		background: none;
-		border: none;
-		border-left: 1px solid var(--line);
-		padding: 2px 0 2px 10px;
-		margin-left: 2px;
-		font-size: 13px;
-		font-weight: 500;
-		color: var(--muted);
-		cursor: pointer;
-		white-space: nowrap;
-		transition: color 0.15s;
-	}
-
-	.logout-btn:hover {
-		color: var(--ink);
-	}
-
-	.btn-spinner {
-		display: inline-block;
-		width: 11px;
-		height: 11px;
-		border: 2px solid rgba(255, 255, 255, 0.35);
-		border-top-color: #fff;
-		border-radius: 50%;
-		animation: spin 0.7s linear infinite;
 	}
 
 	/* Iframe card fills remaining space */

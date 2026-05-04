@@ -139,12 +139,6 @@
 		box-shadow: var(--shadow-card);
 	}
 
-	.logo {
-		font-size: 3rem;
-		line-height: 1;
-		margin-bottom: 16px;
-	}
-
 	.title {
 		font-size: 1.4rem;
 		font-weight: 700;

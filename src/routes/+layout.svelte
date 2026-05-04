@@ -5,6 +5,7 @@
 	import OfflineNotice from '$lib/OfflineNotice.svelte';
 	import ChildSafePicker from '$lib/ChildSafePicker.svelte';
 	import '../style.css';
+	import '../wallet-ui.css';
 
 	interface Props {
 		children: Snippet;

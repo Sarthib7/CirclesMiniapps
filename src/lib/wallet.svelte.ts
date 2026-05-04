@@ -71,6 +71,9 @@ let pickerVisible = $state(false);
 let pickerSafes = $state<string[]>([]);
 let pickerProfiles = $state<Record<string, { name: string; previewImageUrl: string }>>({});
 let pickerResolve: ((addr: string | null) => void) | null = null;
+// Set once the user has resolved the picker this session (picked a child or stuck with primary).
+// Reset on disconnect so the next login shows the picker again.
+let pickerCompleted = false;
 
 function getSavedSafeAddress(): string {
 	return localStorage.getItem(SAFE_ADDRESS_KEY) ?? '';
@@ -188,15 +191,11 @@ async function fetchAvatarInfo(safeAddress: string) {
 	}
 }
 
-/** Build the prevalidated signature bytes for a single owner with threshold=1. */
-function buildPrevalidatedSignature(ownerAddress: string): `0x${string}` {
-	const ownerPadded = ownerAddress.toLowerCase().replace('0x', '').padStart(64, '0');
-	return `0x${ownerPadded}${'0'.repeat(64)}01`;
-}
-
 /** Wrap a transaction as a Safe.execTransaction call to be sent from the primary safe. */
 function buildSafeExecTx(ownerAddress: string, safeAddress: string, tx: { to: string; data?: string; value?: string }) {
-	const signature = buildPrevalidatedSignature(ownerAddress);
+	// Prevalidated signature bytes for a single owner with threshold=1: ownerPadded(32) || zeros(32) || 0x01
+	const ownerPadded = ownerAddress.toLowerCase().replace('0x', '').padStart(64, '0');
+	const signature = `0x${ownerPadded}${'0'.repeat(64)}01` as `0x${string}`;
 	return {
 		to: safeAddress,
 		value: '0',
@@ -259,6 +258,7 @@ function disconnect() {
 	pickerVisible = false;
 	pickerSafes = [];
 	pickerProfiles = {};
+	pickerCompleted = false;
 	if (pickerResolve) { pickerResolve(null); pickerResolve = null; }
 }
 
@@ -300,8 +300,15 @@ async function autoConnectAndPick() {
 }
 
 async function _openPickerIfNeeded() {
+	// Skip if the user already resolved the picker in this session — they shouldn't
+	// be re-prompted just by navigating between pages. disconnect() resets this flag.
+	// Also skip if the picker is already open (re-entrant call from another mount).
+	if (pickerCompleted || pickerVisible) return;
 	const safes = await fetchOwnedChildSafes();
-	if (safes.length === 0) return;
+	if (safes.length === 0) {
+		pickerCompleted = true;
+		return;
+	}
 	pickerSafes = safes;
 	pickerProfiles = {};
 	pickerVisible = true;
@@ -313,6 +320,7 @@ async function _openPickerIfNeeded() {
 	await new Promise<void>((res) => {
 		pickerResolve = (addr) => {
 			if (addr) loginAsChildSafe(addr);
+			pickerCompleted = true;
 			res();
 		};
 	});
@@ -407,6 +415,30 @@ function safeMessagePreimage(chainId: number, safeAddress: string, message: `0x$
 	return concat(['0x1901', safeDomainSeparator(chainId, safeAddress), innerStructHash]);
 }
 
+/**
+ * Sign an inner content (raw bytes for the auth-service flow, or eip191Hash for the
+ * standard ERC-1271 flow) on behalf of the active child safe. The primary safe (passkey-
+ * controlled) signs the SafeMessage hash that the child safe will reconstruct on-chain;
+ * we then wrap the signature in Safe's v=0 contract-signature format.
+ *
+ * On-chain verification flow (childSafe.isValidSignature(content, sig)):
+ *   1. childSafe wraps `content` as SafeMessage with its own domain → safeMsgHash_child
+ *   2. parses contract-sig → forwards FULL preimage (messageData_child), not the hash,
+ *      to primarySafe.isValidSignature(messageData_child, innerSig)
+ *   3. primarySafe wraps that bytes preimage in its own SafeMessage; since
+ *      keccak256(messageData_child) == safeMsgHash_child, the resulting safeMsgHash_primary
+ *      is exactly what we sign here.
+ *
+ * Passing `messageDataChild` (full preimage, not the hash) to account.sign is required —
+ * viem encodes its argument as `bytes` and hashes it once, matching Safe's behavior.
+ */
+async function signWithChildSafe(innerContent: `0x${string}`): Promise<`0x${string}`> {
+	const chainId = smartAccountClient.chain?.id ?? 100;
+	const messageDataChild = safeMessagePreimage(chainId, childSafeAddress, innerContent);
+	const innerSig = await smartAccountClient.account.sign({ hash: messageDataChild });
+	return buildSafeContractSig(address, innerSig);
+}
+
 async function signMessage(message: string) {
 	if (!smartAccountClient) throw new Error('Wallet not connected');
 	// The auth service verifies via Safe.isValidSignature(bytes rawMsgBytes, sig),
@@ -415,45 +447,23 @@ async function signMessage(message: string) {
 	// signTypedData bypasses the SDK's internal generateSafeMessageMessage() wrapper
 	// (which would add an extra EIP-191 hash), letting us pass rawMsgBytes directly
 	// as the SafeMessage content — matching exactly what the auth service verifies.
-	const chainId = smartAccountClient.chain?.id ?? 100;
 	const rawMsgBytes = toHex(new TextEncoder().encode(message));
 
 	if (childSafeAddress) {
-		// Verification flow on chain:
-		//   childSafe.isValidSignature(rawMsgBytes, sig)
-		//     → safeMsgHash_child = EIP712(SafeMessage{rawMsgBytes}, domain=child)
-		//     → parses contract-sig (v=0) → calls primarySafe.isValidSignature(messageData_child, innerSig)
-		//       (note: the FULL preimage messageData_child is forwarded, NOT the hash)
-		//     → primarySafe computes safeMsgHash_primary = EIP712(SafeMessage{messageData_child as bytes}, domain=primary)
-		//       (Safe's bytes-overload does keccak256(messageData_child) = safeMsgHash_child internally)
-		//     → checks passkey signed safeMsgHash_primary
-		//
-		// To get the matching passkey signature, we must hand the full preimage to
-		// account.sign (which encodes its argument as bytes inside SafeMessage). Passing
-		// just safeMsgHash_child would cause viem to keccak256 it once more — mismatching.
-		const messageDataChild = safeMessagePreimage(chainId, childSafeAddress, rawMsgBytes);
-		const innerSig = await smartAccountClient.account.sign({ hash: messageDataChild });
-		const signature = buildSafeContractSig(address, innerSig);
-		const verified = await publicClient.verifyMessage({
-			address: childSafeAddress,
-			message,
-			signature
-		});
+		const signature = await signWithChildSafe(rawMsgBytes);
+		const verified = await publicClient.verifyMessage({ address: childSafeAddress, message, signature });
 		return { signature, verified };
 	}
 
 	const safeAddress = smartAccountClient.account.address;
+	const chainId = smartAccountClient.chain?.id ?? 100;
 	const signature = await smartAccountClient.account.signTypedData({
 		domain: { chainId, verifyingContract: safeAddress },
 		types: { SafeMessage: [{ name: 'message', type: 'bytes' }] },
 		primaryType: 'SafeMessage',
 		message: { message: rawMsgBytes }
 	});
-	const verified = await publicClient.verifyMessage({
-		address: safeAddress,
-		message,
-		signature
-	});
+	const verified = await publicClient.verifyMessage({ address: safeAddress, message, signature });
 	return { signature, verified };
 }
 
@@ -464,29 +474,12 @@ async function signMessage(message: string) {
  * including XMTP (libxmtp passes eip191_hash_message(text) to isValidSignature)
  * and standard EIP-1271 wallets.
  *
- * Flow:
- *   account.signMessage({ message }) → generateSafeMessageMessage(msg) = hashMessage(msg) = eip191Hash
- *   → signs SafeMessage{ message: eip191Hash } via signTypedData
- *   Verifier calls isValidSignature(eip191Hash, sig) → Safe reconstructs same SafeMessage hash ✓
- *
  * NOTE: This is NOT compatible with the auth service (which calls isValidSignature(rawBytes, sig)).
  * Use wallet.signMessage() for the auth service flow.
  */
 async function signErc1271Message(message: string) {
 	if (!smartAccountClient) throw new Error('Wallet not connected');
-
-	if (childSafeAddress) {
-		// Verifier passes hashMessage(message) (32 bytes) to childSafe.isValidSignature.
-		// Child handler wraps as SafeMessage with the EIP-191 hash as the bytes message,
-		// gets safeMsgHash_child, then forwards messageData_child to primarySafe.
-		// We hand the same preimage to account.sign so the keccak depths match.
-		const chainId = smartAccountClient.chain?.id ?? 100;
-		const eip191Hash = hashMessage(message);
-		const messageDataChild = safeMessagePreimage(chainId, childSafeAddress, eip191Hash);
-		const innerSig = await smartAccountClient.account.sign({ hash: messageDataChild });
-		return buildSafeContractSig(address, innerSig);
-	}
-
+	if (childSafeAddress) return signWithChildSafe(hashMessage(message));
 	const signature = await smartAccountClient.account.signMessage({ message });
 	return signature as `0x${string}`;
 }

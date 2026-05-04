@@ -610,29 +610,6 @@
 		gap: 8px;
 	}
 
-	.kudos-suggestions {
-		display: flex;
-		flex-direction: row;
-		gap: 6px;
-	}
-
-	.kudos-suggestion {
-		flex: 1;
-		background: rgba(255, 255, 255, 0.15);
-		border: 1px solid rgba(255, 255, 255, 0.3);
-		border-radius: 8px;
-		padding: 6px 0;
-		font-size: 1.1rem;
-		cursor: pointer;
-		transition: background 0.12s;
-		line-height: 1;
-		text-align: center;
-	}
-
-	.kudos-suggestion:hover {
-		background: rgba(255, 255, 255, 0.28);
-	}
-
 	.kudos-arrow {
 		color: #ffffff;
 		flex-shrink: 0;
