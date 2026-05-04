@@ -1,4 +1,4 @@
-import { createPublicClient, http, getAddress, toHex, encodeFunctionData, zeroAddress, isAddress, hashMessage, hashTypedData, keccak256, encodeAbiParameters, concat } from 'viem';
+import { createPublicClient, http, getAddress, toHex, encodeFunctionData, zeroAddress, isAddress, hashMessage, keccak256, encodeAbiParameters, concat } from 'viem';
 import { gnosis } from 'viem/chains';
 import {
 	createSafeSmartAccount,
@@ -56,10 +56,10 @@ const SAFE_ABI = [
 let address = $state<string>('');
 let connected = $state(false);
 let connecting = $state(false);
+let connectionError = $state<string>('');
 let avatarName = $state<string>('');
 let avatarImageUrl = $state<string>('');
 let manuallyDisconnected = false;
-let autoConnecting = false;
 
 // Child safe state — when set, transactions are routed through execTransaction
 let childSafeAddress = $state<string>('');
@@ -98,6 +98,7 @@ async function connectWithPasskey() {
 	if (!config) return;
 
 	connecting = true;
+	connectionError = '';
 	try {
 		const resolved = await retrieveAccountAddressFromPasskeys({
 			apiKey: config.apiKey,
@@ -105,8 +106,8 @@ async function connectWithPasskey() {
 		});
 		await connect(resolved as string);
 	} catch (error: any) {
-		console.error('Passkey connection error:', error);
-		if (!autoConnecting) alert('Failed to connect: ' + error.message);
+		console.error('[wallet] Passkey connection error:', error);
+		connectionError = error?.message ?? String(error);
 	} finally {
 		connecting = false;
 	}
@@ -117,10 +118,10 @@ async function connect(safeAddress: string) {
 	if (!config) return;
 
 	connecting = true;
+	connectionError = '';
 
 	try {
 		safeAddress = getAddress(safeAddress);
-		localStorage.setItem(SAFE_ADDRESS_KEY, safeAddress);
 
 		publicClient = createPublicClient({
 			chain: gnosis,
@@ -158,12 +159,25 @@ async function connect(safeAddress: string) {
 			}
 		});
 
+		// Persist only after the cometh client is fully constructed — if any of the
+		// async setup above throws, we don't want a stale safe_address sitting in
+		// localStorage that future autoConnect calls would silently re-use.
+		localStorage.setItem(SAFE_ADDRESS_KEY, safeAddress);
 		address = safeAddress;
 		connected = true;
 		fetchAvatarInfo(safeAddress);
 	} catch (error: any) {
-		console.error('Connection error:', error);
-		if (!autoConnecting) alert('Failed to connect: ' + error.message);
+		console.error('[wallet] Connection error:', error);
+		// Roll back any partial state so the UI shows "Sign in" again instead of a
+		// half-mounted spinner that the user can't escape. Also clear the saved
+		// safe_address — a stale value would silently route the next autoConnect
+		// down the same broken path without ever prompting the passkey.
+		smartAccountClient = null;
+		publicClient = null;
+		address = '';
+		connected = false;
+		localStorage.removeItem(SAFE_ADDRESS_KEY);
+		connectionError = error?.message ?? String(error);
 	} finally {
 		connecting = false;
 	}
@@ -258,23 +272,20 @@ function disconnect() {
 	pickerVisible = false;
 	pickerSafes = [];
 	pickerProfiles = {};
-	pickerCompleted = false;
+	// Resolve any pending picker promise BEFORE clearing pickerCompleted — the
+	// resolver flips pickerCompleted to true, so clearing must come after.
 	if (pickerResolve) { pickerResolve(null); pickerResolve = null; }
+	pickerCompleted = false;
 }
 
 /** Call on page mount. Auto-connects from saved address or passkey; skips if user disconnected this session. */
 async function autoConnect() {
 	if (connected || connecting || manuallyDisconnected) return;
-	autoConnecting = true;
-	try {
-		const target = getSavedSafeAddress();
-		if (target) {
-			await connect(target);
-		} else {
-			await connectWithPasskey();
-		}
-	} finally {
-		autoConnecting = false;
+	const target = getSavedSafeAddress();
+	if (target) {
+		await connect(target);
+	} else {
+		await connectWithPasskey();
 	}
 }
 
@@ -282,11 +293,15 @@ async function autoConnect() {
  * Connect via passkey then show the child safe picker if owned child safes exist.
  * Returns after the user has made their selection (or if there were no child safes).
  * Use this instead of connectWithPasskey() for any sign-in button in the UI.
+ *
+ * `force: true` bypasses the session-level pickerCompleted gate — explicit user
+ * sign-in always re-shows the picker. Page-mount auto-connect uses force=false
+ * so navigating between pages doesn't re-prompt.
  */
 async function connectAndPick() {
 	await connectWithPasskey();
 	if (!connected) return;
-	await _openPickerIfNeeded();
+	await _openPickerIfNeeded({ force: true });
 }
 
 /**
@@ -296,16 +311,30 @@ async function connectAndPick() {
 async function autoConnectAndPick() {
 	await autoConnect();
 	if (!connected) return;
-	await _openPickerIfNeeded();
+	await _openPickerIfNeeded({ force: false });
 }
 
-async function _openPickerIfNeeded() {
-	// Skip if the user already resolved the picker in this session — they shouldn't
-	// be re-prompted just by navigating between pages. disconnect() resets this flag.
-	// Also skip if the picker is already open (re-entrant call from another mount).
-	if (pickerCompleted || pickerVisible) return;
-	const safes = await fetchOwnedChildSafes();
+async function _openPickerIfNeeded({ force }: { force: boolean }) {
+	// Skip if the picker is already open (re-entrant call from a concurrent mount).
+	if (pickerVisible) return;
+	// On non-forced (page-mount) calls, skip when the user has already resolved the
+	// picker in this session. force=true (explicit sign-in) always proceeds because
+	// the user just authenticated and expects the account chooser as part of login.
+	if (!force && pickerCompleted) return;
+
+	let safes: string[];
+	try {
+		safes = await fetchOwnedChildSafes();
+	} catch (err) {
+		// Transient failure (network, RPC, Safe Tx Service down). Don't mark the
+		// picker as completed — the user should still be able to retry by re-signing in.
+		console.warn('[wallet] fetchOwnedChildSafes failed; skipping picker:', err);
+		return;
+	}
+
 	if (safes.length === 0) {
+		// Legitimate empty result — user owns no child safes. Mark complete so the
+		// picker doesn't re-prompt on every page navigation.
 		pickerCompleted = true;
 		return;
 	}
@@ -488,49 +517,50 @@ async function signErc1271Message(message: string) {
  * Fetch safes where the given address is an owner, via Safe Transaction Service,
  * then verify on-chain that the primary address is truly an owner with threshold >= 1.
  * Returns verified child safe addresses (excluding the primary safe itself).
+ *
+ * Throws on transient/network failures so callers can distinguish "no children"
+ * (legitimate empty result) from "couldn't determine" — silently treating both
+ * the same caused the picker to be permanently suppressed when the Safe Tx
+ * Service request flaked.
  */
 async function fetchOwnedChildSafes(): Promise<string[]> {
 	if (!address || !publicClient) return [];
 
-	try {
-		const res = await fetch(`${SAFE_TX_SERVICE_URL}/api/v1/owners/${address}/safes/`);
-		if (!res.ok) return [];
-		const data = await res.json();
-		const candidates: string[] = (data?.safes ?? [])
-			.filter((s: string) => isAddress(s))
-			.map((s: string) => getAddress(s))
-			.filter((s: string) => s.toLowerCase() !== address.toLowerCase());
+	const res = await fetch(`${SAFE_TX_SERVICE_URL}/api/v1/owners/${address}/safes/`);
+	if (!res.ok) throw new Error(`Safe TX Service returned ${res.status}`);
+	const data = await res.json();
+	const candidates: string[] = (data?.safes ?? [])
+		.filter((s: string) => isAddress(s))
+		.map((s: string) => getAddress(s))
+		.filter((s: string) => s.toLowerCase() !== address.toLowerCase());
 
-		if (!candidates.length) return [];
+	if (!candidates.length) return [];
 
-		// Verify on-chain: primary address must be an owner and threshold >= 1
-		const contracts = candidates.flatMap((safeAddr) => [
-			{ address: safeAddr as `0x${string}`, abi: SAFE_ABI, functionName: 'getOwners' as const },
-			{ address: safeAddr as `0x${string}`, abi: SAFE_ABI, functionName: 'getThreshold' as const }
-		]);
+	// Verify on-chain: primary address must be an owner and threshold >= 1
+	const contracts = candidates.flatMap((safeAddr) => [
+		{ address: safeAddr as `0x${string}`, abi: SAFE_ABI, functionName: 'getOwners' as const },
+		{ address: safeAddr as `0x${string}`, abi: SAFE_ABI, functionName: 'getThreshold' as const }
+	]);
 
-		const results = await publicClient.multicall({ contracts, allowFailure: true });
+	const results = await publicClient.multicall({ contracts, allowFailure: true });
 
-		const verified: string[] = [];
-		candidates.forEach((safeAddr, i) => {
-			const ownersResult = results[i * 2];
-			const thresholdResult = results[i * 2 + 1];
-			if (ownersResult?.status !== 'success' || thresholdResult?.status !== 'success') return;
-			const owners = ownersResult.result as string[];
-			const threshold = thresholdResult.result as bigint;
-			if (
-				Array.isArray(owners) &&
-				owners.some((o) => o.toLowerCase() === address.toLowerCase()) &&
-				BigInt(threshold) >= 1n
-			) {
-				verified.push(safeAddr);
-			}
-		});
+	const verified: string[] = [];
+	candidates.forEach((safeAddr, i) => {
+		const ownersResult = results[i * 2];
+		const thresholdResult = results[i * 2 + 1];
+		if (ownersResult?.status !== 'success' || thresholdResult?.status !== 'success') return;
+		const owners = ownersResult.result as string[];
+		const threshold = thresholdResult.result as bigint;
+		if (
+			Array.isArray(owners) &&
+			owners.some((o) => o.toLowerCase() === address.toLowerCase()) &&
+			BigInt(threshold) >= 1n
+		) {
+			verified.push(safeAddr);
+		}
+	});
 
-		return verified;
-	} catch {
-		return [];
-	}
+	return verified;
 }
 
 /**
@@ -576,6 +606,7 @@ export const wallet = {
 	get primaryAddress() { return address; },
 	get connected() { return connected; },
 	get connecting() { return connecting; },
+	get connectionError() { return connectionError; },
 	get avatarName() { return childSafeAddress ? childSafeAvatarName : avatarName; },
 	get avatarImageUrl() { return childSafeAddress ? childSafeAvatarImageUrl : avatarImageUrl; },
 	get childSafeAddress() { return childSafeAddress; },

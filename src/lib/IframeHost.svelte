@@ -165,6 +165,13 @@
 	</div>
 </div>
 
+{#if !wallet.connected && wallet.connectionError}
+	<div class="connection-error" role="alert">
+		<span>Sign-in failed: {wallet.connectionError}</span>
+		<button class="connection-error-retry" onclick={() => wallet.connectAndPick()}>Retry</button>
+	</div>
+{/if}
+
 {@render beforeIframe?.()}
 
 <div class="iframe-card">
@@ -192,6 +199,36 @@
 		font-weight: 600;
 		letter-spacing: -0.02em;
 		color: var(--ink);
+	}
+
+	.connection-error {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 8px 12px;
+		margin: 0 0 12px;
+		font-size: 13px;
+		background: rgba(220, 38, 38, 0.08);
+		border: 1px solid rgba(220, 38, 38, 0.25);
+		border-radius: var(--radius-sm, 8px);
+		color: #b91c1c;
+	}
+
+	.connection-error-retry {
+		background: none;
+		border: 1px solid rgba(185, 28, 28, 0.4);
+		border-radius: var(--radius-pill);
+		padding: 3px 12px;
+		font-size: 12px;
+		font-weight: 600;
+		color: #b91c1c;
+		cursor: pointer;
+		transition: background 0.12s;
+	}
+
+	.connection-error-retry:hover {
+		background: rgba(185, 28, 28, 0.12);
 	}
 
 	.iframe-card {
