@@ -8,10 +8,9 @@ Create the miniapp directory and all required files using the templates from AGE
 
 ## Steps
 
-1. **Create directory and copy SDK**
+1. **Create directory**
    ```bash
    mkdir -p examples/<slug>
-   cp examples/miniapp-sdk.js examples/<slug>/miniapp-sdk.js
    ```
 
 2. **Create `examples/<slug>/index.html`** — use Pattern H (UI shell) from AGENT.md, replacing the title and heading with the display name.

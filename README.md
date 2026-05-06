@@ -233,7 +233,7 @@ const data = btoa(encoded)
 
 ## postMessage protocol
 
-Mini apps communicate with the host via `window.postMessage`. Use `examples/miniapp-sdk.js` for a ready-made client-side SDK.
+Mini apps communicate with the host via `window.postMessage`. Use `@aboutcircles/miniapp-sdk` (npm package) for a ready-made client-side SDK.
 
 **From mini app → host:**
 

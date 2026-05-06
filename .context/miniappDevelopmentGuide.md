@@ -32,7 +32,7 @@ The user journey is as follows:
 ### What You Need
 
 - A Gnosis App account with a registered Circles v2 human avatar
-- The MiniApp SDK bridge (`miniapp-sdk.js`) — a **local file** you copy into your miniapp from `examples/miniapp-sdk.js`. It is **not** an npm package. It acts as a postMessage bridge between your MiniApp (running in an iframe) and the host.
+- The MiniApp SDK bridge — the `@aboutcircles/miniapp-sdk` npm package. It acts as a postMessage bridge between your MiniApp (running in an iframe) and the host. Install with `npm install @aboutcircles/miniapp-sdk`.
 - A Circles Org Account (highly recommended for accepting payments and payouts)
 
 ---
@@ -74,7 +74,7 @@ The user journey is as follows:
 A miniApp generally comprises:
 
 1. **Client UI** - state, status, and actions
-2. **Wallet transaction execution** - via `miniapp-sdk.js` (local postMessage bridge, copied from `examples/miniapp-sdk.js`)
+2. **Wallet transaction execution** - via `@aboutcircles/miniapp-sdk` (npm package)
 3. **Backend API** - validation and state machine (can also be replaced by on-chain smart contracts)
 4. **Persistent storage** - Supabase, IPFS, etc.
 5. **Verification and on-chain payouts** - org-driven
@@ -86,8 +86,7 @@ examples/your-miniapp/
 ├── index.html          # Main UI (required)
 ├── main.js             # Application logic (required)
 ├── style.css           # Styling (required - use org-manager design system)
-├── miniapp-sdk.js      # Host bridge (copy from examples/miniapp-sdk.js)
-├── package.json        # Dependencies (required)
+├── package.json        # Dependencies (required - include @aboutcircles/miniapp-sdk)
 ├── tsconfig.json       # TypeScript config (optional but recommended)
 ├── README.md           # Documentation (required)
 └── .gitignore          # Ignore node_modules, dist, etc.
@@ -123,7 +122,7 @@ sendTransactions([tx1, tx2, ...]) -> Promise<string[]> // tx hashes
 ### Import and Setup
 
 ```javascript
-import { onWalletChange, sendTransactions } from './miniapp-sdk.js';
+import { onWalletChange, sendTransactions } from '@aboutcircles/miniapp-sdk';
 ```
 
 ### Wallet Connection
@@ -167,7 +166,7 @@ function formatTxForHost(tx) {
 Send xDAI/ETH to an address:
 
 ```javascript
-import { sendTransactions } from './miniapp-sdk.js';
+import { sendTransactions } from '@aboutcircles/miniapp-sdk';
 
 const hashes = await sendTransactions([
   {
@@ -183,7 +182,7 @@ console.log(hashes);
 ### Contract Call (ERC20 Transfer)
 
 ```javascript
-import { sendTransactions } from './miniapp-sdk.js';
+import { sendTransactions } from '@aboutcircles/miniapp-sdk';
 import { encodeFunctionData, parseUnits } from 'viem';
 
 const erc20Abi = [
@@ -1036,8 +1035,8 @@ flowchart TD
 ### Initial Setup
 
 1. Create folder in `examples/your-miniapp/`
-2. Copy `examples/miniapp-sdk.js` into your miniapp folder
-3. Create `package.json`:
+2. Create `package.json` (include `@aboutcircles/miniapp-sdk` as a dependency):
+3. Run `npm install`
 
 ```json
 {
@@ -1049,6 +1048,7 @@ flowchart TD
     "build": "vite build"
   },
   "dependencies": {
+    "@aboutcircles/miniapp-sdk": "^1.0.0",
     "@aboutcircles/sdk": "^0.1.24",
     "@aboutcircles/sdk-utils": "^0.1.24",
     "viem": "^2.46.3"
@@ -1108,7 +1108,7 @@ Add an entry to `static/miniapps.json`:
 ## 16. Quick Start Template
 
 ```javascript
-import { onWalletChange, sendTransactions } from './miniapp-sdk.js';
+import { onWalletChange, sendTransactions } from '@aboutcircles/miniapp-sdk';
 import { Sdk } from '@aboutcircles/sdk';
 import { getAddress, encodeFunctionData } from 'viem';
 

@@ -11,13 +11,14 @@ If your task is to **build a miniapp autonomously**, follow `AGENT.md` at the re
 ## Key Conventions
 
 - **Network**: Gnosis Chain only (chain ID 100)
-- **Miniapp structure**: `index.html` + `main.js` + `style.css` + `miniapp-sdk.js`
-- **Wallet bridge**: `examples/miniapp-sdk.js` — copy into each miniapp. It is a local file, not an npm package. Exports: `onWalletChange`, `sendTransactions`, `signMessage`, `onAppData`, `isMiniappMode`
+- **Miniapp structure**: `index.html` + `main.js` + `style.css`
+- **Wallet bridge**: `@aboutcircles/miniapp-sdk` — install via npm (`npm install @aboutcircles/miniapp-sdk`). Exports: `onWalletChange`, `sendTransactions`, `signMessage`, `onAppData`, `isMiniappMode`
 - **SDK split**:
-  - `miniapp-sdk.js` = postMessage bridge for wallet ops (transactions, signing) only
+  - `@aboutcircles/miniapp-sdk` = postMessage bridge for wallet ops (transactions, signing) only
   - `@aboutcircles/sdk` + `viem` = read Circles state (profiles, trust, avatars, balances)
 - **Deployment**: Vercel (`vercel --name circles-miniapp-<slug> --yes --prod`)
 - **PR target**: `master` on `aboutcircles/CirclesMiniapps`
+- **Commands**: Custom slash commands (`/scaffold`, `/deploy`, `/open-pr`) are defined in `.claude/commands/` — see `scaffold.md`, `deploy.md`, `open-pr.md`
 
 ## Security
 

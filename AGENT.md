@@ -42,6 +42,20 @@ If `vercel whoami` or `gh auth status` fail, stop and report. Do not proceed.
 
 ---
 
+## Slash Commands
+
+This workflow uses three custom slash commands: `/scaffold`, `/deploy`, and `/open-pr`. Each is defined as a Markdown file in `.claude/commands/`:
+
+| Command | File | Purpose |
+|---------|------|---------|
+| `/scaffold <slug> "<name>"` | `.claude/commands/scaffold.md` | Create the miniapp directory |
+| `/deploy <slug>` | `.claude/commands/deploy.md` | Build and deploy to Vercel |
+| `/open-pr <slug> ...` | `.claude/commands/open-pr.md` | Commit, push, open a draft PR |
+
+When running inside Claude Code, these resolve automatically. When running in any other environment, read the corresponding `.md` file — it contains the complete step-by-step instructions with all CLI commands.
+
+---
+
 ## Phase 0: Orientation (read first, ~15 min)
 
 Read all of the following. Do not skip any.
@@ -93,7 +107,7 @@ The scaffold already applies Gnosis branding via correct CSS tokens (see Pattern
 By the end of Phase 0 you should understand:
 - What Circles is and who uses miniapps
 - The dual-SDK pattern (postMessage bridge + Circles SDK — see below)
-- How the postMessage bridge works (`examples/miniapp-sdk.js`)
+- How the postMessage bridge works (`@aboutcircles/miniapp-sdk` npm package)
 - What patterns exist in working miniapps you can reuse
 - What's already been built (so you don't duplicate)
 - The Gnosis visual language (see below)
@@ -214,7 +228,6 @@ examples/<slug>/
 ├── index.html
 ├── main.js
 ├── style.css
-├── miniapp-sdk.js
 ├── package.json
 └── README.md
 
@@ -234,7 +247,7 @@ Any data structures stored or fetched.
 
 ## Phase 1: Scaffold
 - [ ] Create directory structure
-- [ ] Copy miniapp-sdk.js
+- [ ] Install @aboutcircles/miniapp-sdk via npm
 - [ ] Set up package.json with deps
 - [ ] Basic index.html shell
 
@@ -292,7 +305,7 @@ MiniApps use **two separate tools** for two separate purposes:
 
 | Tool | Purpose | Import |
 |---|---|---|
-| `miniapp-sdk.js` | Wallet operations (send txs, sign messages) | `import { onWalletChange, sendTransactions, signMessage } from './miniapp-sdk.js'` |
+| `@aboutcircles/miniapp-sdk` | Wallet operations (send txs, sign messages) | `import { onWalletChange, sendTransactions, signMessage } from '@aboutcircles/miniapp-sdk'` |
 | `@aboutcircles/sdk` + `viem` | Read Circles state (profiles, trust, balances, avatars, RPC queries) | `import { Sdk } from '@aboutcircles/sdk'` |
 
 **Do not try to use the postMessage bridge for reading data.** Import the Circles SDK directly for all read operations.
@@ -302,7 +315,7 @@ MiniApps use **two separate tools** for two separate purposes:
 ### Pattern A: Wallet connection
 
 ```javascript
-import { onWalletChange, sendTransactions } from './miniapp-sdk.js';
+import { onWalletChange, sendTransactions } from '@aboutcircles/miniapp-sdk';
 
 let connectedAddress = null;
 
@@ -375,7 +388,7 @@ When you need the SDK to send transactions on behalf of the user:
 
 ```javascript
 import { Sdk } from '@aboutcircles/sdk';
-import { sendTransactions } from './miniapp-sdk.js';
+import { sendTransactions } from '@aboutcircles/miniapp-sdk';
 
 function toHexValue(value) {
   return value ? `0x${BigInt(value).toString(16)}` : '0x0';
@@ -875,7 +888,7 @@ try {
 Use this to provide fallback behaviour when running the miniapp outside the host (e.g. during dev):
 
 ```javascript
-import { isMiniappMode } from './miniapp-sdk.js';
+import { isMiniappMode } from '@aboutcircles/miniapp-sdk';
 
 if (!isMiniappMode()) {
   // Running standalone — show a dev-mode banner or mock wallet
