@@ -522,6 +522,8 @@
 		width: 100%;
 		padding: 28px 28px 28px;
 		box-sizing: border-box;
+		transform: translateZ(0);
+		isolation: isolate;
 	}
 
 	@media (max-width: 450px) {
