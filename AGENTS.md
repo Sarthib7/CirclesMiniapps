@@ -105,7 +105,7 @@ Fetch from Context7 when writing Circles SDK code, rather than relying on traini
 ## References
 
 - **Code patterns**: `@.agents/docs/patterns/` - wallet, RPC, transactions, payments, UI shell, design system, utilities
-- **Pre-deploy debug checklist**: `@.agents/docs/debug-checklist.md`
+<!-- - **Pre-deploy debug checklist**: `@.agents/docs/debug-checklist.md`
 - **Live browser debug workflow**: `@.agents/docs/browser-debug.md`
-- **Troubleshooting**: `@.agents/docs/troubleshooting.md`
+- **Troubleshooting**: `@.agents/docs/troubleshooting.md` -->
 - **Active feature work**: `.agents/plans/`
