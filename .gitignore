@@ -22,4 +22,9 @@ Thumbs.db
 .playwright-cli/
 .idea/
 *.swp
+
+# llm files
 .claude/
+.context/
+AGENT.md
+CLAUDE.md
