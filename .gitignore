@@ -21,6 +21,9 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# llm files
 .claude/*
+.agents/*
 !.claude/commands
-.context/specs/
+!.agents/docs
