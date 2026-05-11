@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { SvelteMap } from 'svelte/reactivity';
 	import QRCode from 'qrcode';
@@ -376,10 +375,8 @@
 				</a>
 
 				{#if showQr && qrDataUrl}
-					<!-- svelte-ignore a11y_click_events_have_key_events -->
-					<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<div class="qr-overlay" onclick={() => { showQr = false; }}>
-						<div class="qr-card" onclick={(e) => e.stopPropagation()}>
+					<div class="qr-overlay">
+						<div class="qr-card">
 							<button class="qr-close" onclick={() => { showQr = false; }}>✕</button>
 							<div class="qr-header">
 								<span class="qr-icon">📱</span>
@@ -881,44 +878,50 @@
 		border-color: #999;
 	}
 
-	/* ----- QR overlay ----- */
+	/* ----- QR overlay -----
+	   Everything below is sized off --qr-size so the modal scales as a unit
+	   and never exceeds the iframe width. position: absolute (not fixed) lets
+	   iframe-resizer measure the modal height and grow the iframe to fit. */
 	.qr-overlay {
-		position: fixed;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.55);
-		backdrop-filter: blur(4px);
+		--qr-size: min(220px, 70vw);
+		--qr-pad: calc(var(--qr-size) * 0.055);
+		--card-pad: calc(var(--qr-size) * 0.11);
+		--gap-sm: calc(var(--qr-size) * 0.03);
+		--gap-md: calc(var(--qr-size) * 0.09);
+
 		display: flex;
-		align-items: center;
 		justify-content: center;
-		z-index: 100;
+		margin-top: calc(var(--qr-size) * 0.08);
 	}
 
 	.qr-card {
 		background: #ffffff;
-		border-radius: 24px;
-		padding: 32px 32px 24px;
+		border: 1.5px solid #ddd;
+		border-radius: calc(var(--qr-size) * 0.11);
+		padding: var(--card-pad);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		gap: 0;
 		position: relative;
-		box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
-		width: 320px;
+		width: 100%;
+		max-width: calc(var(--qr-size) + var(--card-pad) * 2 + var(--qr-pad) * 2);
+		box-sizing: border-box;
 	}
 
 	.qr-close {
 		position: absolute;
-		top: 14px;
-		right: 14px;
-		width: 28px;
-		height: 28px;
+		top: calc(var(--qr-size) * 0.065);
+		right: calc(var(--qr-size) * 0.065);
+		width: calc(var(--qr-size) * 0.13);
+		height: calc(var(--qr-size) * 0.13);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		background: #f0f0f0;
 		border: none;
 		border-radius: 50%;
-		font-size: 0.75rem;
+		font-size: calc(var(--qr-size) * 0.06);
 		color: #666;
 		cursor: pointer;
 		line-height: 1;
@@ -935,21 +938,20 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 4px;
-		margin-bottom: 20px;
-		padding-right: 24px;
-		padding-left: 24px;
+		gap: var(--gap-sm);
+		margin-bottom: var(--gap-md);
+		padding: 0 calc(var(--qr-size) * 0.11);
 	}
 
 	.qr-icon {
-		font-size: 1.6rem;
+		font-size: calc(var(--qr-size) * 0.13);
 		line-height: 1;
-		margin-bottom: 6px;
+		margin-bottom: calc(var(--qr-size) * 0.025);
 	}
 
 	.qr-title {
 		margin: 0;
-		font-size: 1.05rem;
+		font-size: calc(var(--qr-size) * 0.075);
 		font-weight: 700;
 		color: #101010;
 		text-align: center;
@@ -957,22 +959,22 @@
 
 	.qr-subtitle {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: calc(var(--qr-size) * 0.058);
 		color: #999;
 		text-align: center;
 	}
 
 	.qr-frame {
 		background: #f5f5f5;
-		border-radius: 16px;
-		padding: 12px;
-		margin-bottom: 20px;
+		border-radius: calc(var(--qr-size) * 0.073);
+		padding: var(--qr-pad);
+		margin-bottom: var(--gap-md);
 	}
 
 	.qr-img {
-		width: 220px;
-		height: 220px;
-		border-radius: 6px;
+		width: var(--qr-size);
+		height: var(--qr-size);
+		border-radius: calc(var(--qr-size) * 0.027);
 		display: block;
 	}
 
@@ -981,10 +983,10 @@
 		width: 100%;
 		box-sizing: border-box;
 		text-align: center;
-		padding: 10px 16px;
+		padding: calc(var(--qr-size) * 0.045) calc(var(--qr-size) * 0.073);
 		background: #f0faf5;
-		border-radius: 10px;
-		font-size: 0.82rem;
+		border-radius: calc(var(--qr-size) * 0.045);
+		font-size: calc(var(--qr-size) * 0.06);
 		font-weight: 600;
 		color: #00874a;
 		text-decoration: none;
