@@ -98,6 +98,7 @@
 	let qrHref = $state<string>('#');
 	let qrMessage = $state<string>('');
 	let showQr = $state(false);
+	let qrCardEl = $state<HTMLDivElement | null>(null);
 
 	async function openKudos(e: MouseEvent) {
 		if (isMobile) return; // let the <a> navigate normally on mobile
@@ -309,6 +310,27 @@
 		s.dataset.iframeResizerChild = 'true';
 		document.head.appendChild(s);
 	});
+
+	// While the QR modal is open, force <body> tall enough to contain it. The modal uses
+	// position: absolute (so it overlays content), which would otherwise leave the iframe
+	// at the un-modal'd height and clip the bottom of the card.
+	$effect(() => {
+		if (typeof document === 'undefined') return;
+		if (!showQr || !qrCardEl) return;
+		const update = () => {
+			if (!qrCardEl) return;
+			// modal top offset + its height + a little breathing room
+			const total = qrCardEl.offsetTop + qrCardEl.offsetHeight + 24;
+			document.body.style.minHeight = `${total}px`;
+		};
+		update();
+		const ro = new ResizeObserver(update);
+		ro.observe(qrCardEl);
+		return () => {
+			ro.disconnect();
+			document.body.style.minHeight = '';
+		};
+	});
 </script>
 
 <svelte:head>
@@ -375,8 +397,10 @@
 				</a>
 
 				{#if showQr && qrDataUrl}
-					<div class="qr-overlay">
-						<div class="qr-card">
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="qr-overlay" onclick={() => { showQr = false; }}>
+						<div class="qr-card" bind:this={qrCardEl} onclick={(e) => e.stopPropagation()}>
 							<button class="qr-close" onclick={() => { showQr = false; }}>✕</button>
 							<div class="qr-header">
 								<span class="qr-icon">📱</span>
@@ -889,14 +913,20 @@
 		--gap-sm: calc(var(--qr-size) * 0.03);
 		--gap-md: calc(var(--qr-size) * 0.09);
 
+		position: absolute;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.55);
+		backdrop-filter: blur(4px);
 		display: flex;
+		align-items: flex-start;
 		justify-content: center;
-		margin-top: calc(var(--qr-size) * 0.08);
+		padding: calc(var(--qr-size) * 0.15) var(--card-pad);
+		box-sizing: border-box;
+		z-index: 100;
 	}
 
 	.qr-card {
 		background: #ffffff;
-		border: 1.5px solid #ddd;
 		border-radius: calc(var(--qr-size) * 0.11);
 		padding: var(--card-pad);
 		display: flex;
@@ -904,6 +934,7 @@
 		align-items: center;
 		gap: 0;
 		position: relative;
+		box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
 		width: 100%;
 		max-width: calc(var(--qr-size) + var(--card-pad) * 2 + var(--qr-pad) * 2);
 		box-sizing: border-box;
