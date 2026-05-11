@@ -310,6 +310,7 @@
 	$effect(() => {
 		if (typeof window === 'undefined') return;
 		if (window.parent === window) return;
+		document.body.classList.add('in-iframe');
 		if (document.querySelector('script[data-iframe-resizer-child]')) return;
 		const s = document.createElement('script');
 		s.src = 'https://cdn.jsdelivr.net/npm/iframe-resizer@4.2.10/js/iframeResizer.contentWindow.min.js';
@@ -543,6 +544,13 @@
 		padding: 48px 16px;
 		box-sizing: border-box;
 		background: #ffffff;
+	}
+
+	/* When embedded in an iframe (parent toggles the body class), drop 100vh —
+	   iframe-resizer drives the iframe height from content, so anchoring to
+	   the iframe's viewport creates a measurement feedback loop on mobile. */
+	:global(body.in-iframe) .page {
+		min-height: 0;
 	}
 
 	.card {
