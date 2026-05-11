@@ -296,6 +296,7 @@
 
 <svelte:head>
 	<title>Appreciations</title>
+	<script src="https://cdn.jsdelivr.net/npm/@iframe-resizer/child@5"></script>
 </svelte:head>
 
 <div class="page">
@@ -498,7 +499,7 @@
 <style>
 	:global(body) {
 		margin: 0;
-		background: #f5f5f5;
+		background: #ffffff;
 		color: #101010;
 		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 		-webkit-font-smoothing: antialiased;
@@ -511,7 +512,7 @@
 		justify-content: center;
 		padding: 48px 16px 80px;
 		box-sizing: border-box;
-		background: #f5f5f5;
+		background: #ffffff;
 	}
 
 	.card {
