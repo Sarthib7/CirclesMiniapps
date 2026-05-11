@@ -177,21 +177,30 @@
 
 	// ----- Profile fetching -----
 	async function fetchProfiles(addresses: string[]): Promise<void> {
-		const missing = addresses.filter((a) => !profileCache.has(a));
+		const missing = Array.from(new Set(addresses.map((a) => a.toLowerCase()))).filter(
+			(a) => !profileCache.has(a)
+		);
 		if (!missing.length) return;
 
-		async function fetchOne(address: string): Promise<void> {
-			try {
-				const profile = (await jsonRpc(CIRCLES_RPC_URL, 'circles_getProfileByAddress', [address])) as Record<string, unknown> | null;
-				const rawImage = (profile?.previewImageUrl ?? null) as string | null;
-				profileCache.set(address.toLowerCase(), {
-					name: (profile?.name as string | null) || null,
-					imageUrl: rawImage || null
-				});
-			} catch { /* profiles optional */ }
-		}
+		// Mark addresses as in-flight immediately so concurrent callers don't refetch them.
+		for (const a of missing) profileCache.set(a, { name: null, imageUrl: null });
 
-		await Promise.allSettled(missing.map(fetchOne));
+		try {
+			const profiles = (await jsonRpc(CIRCLES_RPC_URL, 'circles_getProfileByAddressBatch', [
+				missing
+			])) as Array<Record<string, unknown> | null> | null;
+			if (Array.isArray(profiles)) {
+				for (let i = 0; i < missing.length; i++) {
+					const p = profiles[i];
+					profileCache.set(missing[i], {
+						name: (p?.name as string | null) || null,
+						imageUrl: (p?.previewImageUrl as string | null) || null
+					});
+				}
+			}
+		} catch {
+			/* profiles optional — leave placeholder entries so we don't retry every 5s */
+		}
 	}
 
 	function getProfile(addr: string) {
