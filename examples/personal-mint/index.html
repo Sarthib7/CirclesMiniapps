@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mint Personal CRC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="title-row">
+        <h1>Mint Personal CRC</h1>
+        <span id="badge" class="badge badge-disconnected">Not connected</span>
+      </div>
+      <p class="subtitle">Claim the CRC you've accrued as a registered Circles human.</p>
+    </header>
+
+    <!-- Disconnected -->
+    <div id="disconnected-view" class="view">
+      <div class="card">
+        <div class="card-icon">🔗</div>
+        <h2>Connect Your Wallet</h2>
+        <p class="card-text">
+          Open this app from the Circles wallet to connect your account and mint your personal CRC.
+        </p>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading-view" class="view hidden">
+      <div class="card">
+        <div class="spinner"></div>
+        <p class="card-text" style="text-align:center;margin-top:16px">Loading avatar…</p>
+      </div>
+    </div>
+
+    <!-- Not a human -->
+    <div id="not-human-view" class="view hidden">
+      <div class="card card-warning">
+        <div class="card-icon">⚠️</div>
+        <h2>Not a Circles Human</h2>
+        <p class="card-text">
+          This address is not registered as a Circles v2 human avatar, so it cannot mint personal CRC.
+          Register your account on Circles first.
+        </p>
+        <div class="address-display" id="not-human-address"></div>
+      </div>
+    </div>
+
+    <!-- Stopped -->
+    <div id="stopped-view" class="view hidden">
+      <div class="card card-warning">
+        <div class="card-icon">⏹️</div>
+        <h2>Avatar Stopped</h2>
+        <p class="card-text">
+          This avatar has been stopped on-chain. Personal CRC minting is permanently disabled for stopped avatars.
+        </p>
+        <div class="address-display" id="stopped-address"></div>
+      </div>
+    </div>
+
+    <!-- Main mint view -->
+    <div id="mint-view" class="view hidden">
+      <div class="card">
+        <div class="profile-row">
+          <div class="profile-avatar" id="profile-avatar">?</div>
+          <div class="profile-info">
+            <div class="profile-name" id="profile-name">Circles Avatar</div>
+            <div class="address-display" id="profile-address"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Personal CRC Balance</h2>
+        <div class="amount-row">
+          <div class="amount-value" id="balance-amount">—</div>
+          <div class="amount-unit">CRC</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Mintable Right Now</h2>
+        <div class="amount-row">
+          <div class="amount-value accent" id="mintable-amount">—</div>
+          <div class="amount-unit">CRC</div>
+        </div>
+        <p class="status-desc" id="mintable-period">Personal CRC accrues continuously, up to ~24 CRC per day.</p>
+
+        <button id="mint-btn" class="btn-primary" disabled>
+          <span class="btn-text">Mint Personal CRC</span>
+          <span class="btn-spinner hidden">⏳</span>
+        </button>
+        <button id="refresh-btn" class="btn-secondary" style="margin-top:10px">Refresh</button>
+      </div>
+
+      <div id="result-box" class="result-box hidden">
+        <div class="result-icon" id="result-icon">✅</div>
+        <p id="result-message"></p>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
