@@ -15,6 +15,7 @@
     <header class="app-header">
       <div class="title-row">
         <h1>Bulk Untrust</h1>
+        <button id="switch-safe-btn" class="btn-secondary btn-inline hidden" title="Switch account">↔ Switch</button>
         <div id="wallet-status" class="badge">Not connected</div>
       </div>
     </header>
@@ -25,6 +26,20 @@
         <div class="card empty-state">
           <div class="empty-icon">🔗</div>
           <p>Connect your wallet via the Circles host to manage your trust connections.</p>
+        </div>
+      </div>
+
+      <div id="safe-selector-view" class="view hidden">
+        <div class="card safe-selector-card">
+          <h2 class="safe-selector-title">Select an account</h2>
+          <p class="safe-selector-desc">Choose which account to manage trust connections for.</p>
+          <div id="safe-loading" class="safe-loading">
+            <div class="spinner"></div>
+            <p>Discovering your accounts…</p>
+          </div>
+          <div id="safe-list-content">
+            <div id="safe-list" class="safe-list"></div>
+          </div>
         </div>
       </div>
 

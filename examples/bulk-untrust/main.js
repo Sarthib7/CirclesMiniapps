@@ -28,6 +28,7 @@ const ENTRYPOINT = '0x0000000071727de22e5e9d8baf0edac6f37da032';
 const LOOKBACK = 5000n;
 const POLL_MS = 3000;
 const TIMEOUT_MS = 12 * 60 * 1000;
+const SAFE_TX_SERVICE_URL = 'https://safe-transaction-gnosis-chain.safe.global';
 
 // ── SDK & RPC clients ──────────────────────────────────────────────────────
 const sdk = new Sdk();
@@ -38,6 +39,8 @@ const receiptClients = RPC_FALLBACK_URLS.map(url =>
 
 // ── App state ──────────────────────────────────────────────────────────────
 let connectedAddress = null;
+let availableSafes = [];
+let selectedSafeAddress = null;
 let entries = [];
 let sortKey = 'score';
 let sortAsc = false;
@@ -362,6 +365,119 @@ async function lazyLoadScores() {
   updateStats();
 }
 
+// ── Safe discovery ─────────────────────────────────────────────────────────
+async function fetchSignerSafes(ownerAddress) {
+  const url = `${SAFE_TX_SERVICE_URL}/api/v1/owners/${ownerAddress}/safes/`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data?.safes || [];
+  } catch {
+    return [];
+  }
+}
+
+async function discoverSafes(ownerAddress) {
+  // Get all Safes the connected address is a signer for
+  const signerSafes = await fetchSignerSafes(ownerAddress);
+
+  // Build a deduplicated candidate list: connected address + all signer Safes
+  const seen = new Set();
+  const candidates = [];
+  const addCandidate = (addr) => {
+    const checksummed = getAddress(addr);
+    const key = checksummed.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      candidates.push(checksummed);
+    }
+  };
+  addCandidate(ownerAddress);
+  signerSafes.forEach(addCandidate);
+
+  // Enrich each candidate with Circles profile data
+  const enriched = await Promise.allSettled(
+    candidates.map(async (address) => {
+      let name = null;
+      let imageUrl = null;
+      let type = null;
+
+      try {
+        const profile = await sdk.rpc.profile.getProfileByAddress(address);
+        name = profile?.name?.trim() || null;
+        imageUrl = profile?.previewImageUrl || profile?.imageUrl || null;
+      } catch {}
+
+      try {
+        const avatar = await sdk.data.getAvatar(address);
+        type = avatar?.type || avatar?.avatarType || null;
+      } catch {}
+
+      return { address, name, imageUrl, type };
+    })
+  );
+
+  return enriched
+    .filter(r => r.status === 'fulfilled')
+    .map(r => r.value)
+    .sort((a, b) => (a.name || a.address).localeCompare(b.name || b.address));
+}
+
+function renderSafeSelector(safes) {
+  const listEl = $('safe-list');
+  if (!listEl) return;
+
+  if (safes.length === 0) {
+    listEl.innerHTML = '<p class="safe-empty">No accounts found. Try connecting a different wallet.</p>';
+    return;
+  }
+
+  listEl.innerHTML = safes.map(safe => {
+    const displayName = safe.name || shortAddr(safe.address);
+    const typeLabel = safe.type || 'Unknown';
+    const avatarStyle = safe.imageUrl ? `style="background-image:url('${escHtml(safe.imageUrl)}')"` : '';
+    const avatarInitial = !safe.imageUrl ? `<span>${escHtml((displayName[0] || '?').toUpperCase())}</span>` : '';
+    const isPersonal = safe.address.toLowerCase() === connectedAddress?.toLowerCase();
+
+    return `<div class="safe-item" data-addr="${safe.address}">
+      <div class="safe-avatar" ${avatarStyle}>${avatarInitial}</div>
+      <div class="safe-info">
+        <div class="safe-name">${escHtml(displayName)}${isPersonal ? ' <span class="badge-personal">personal</span>' : ''}</div>
+        <div class="safe-meta">
+          <span class="safe-type">${escHtml(typeLabel)}</span>
+          <a class="safe-addr-link" href="https://explorer.aboutcircles.com/avatar/${safe.address}/" target="_blank" rel="noopener">${shortAddr(safe.address)}</a>
+        </div>
+      </div>
+      <button class="btn-secondary btn-inline safe-select-btn" data-addr="${safe.address}">Select</button>
+    </div>`;
+  }).join('');
+
+  // Wire select buttons
+  listEl.querySelectorAll('.safe-select-btn').forEach(btn => {
+    btn.addEventListener('click', () => selectSafe(btn.dataset.addr));
+  });
+}
+
+function selectSafe(address) {
+  selectedSafeAddress = getAddress(address);
+  const safe = availableSafes.find(s => s.address === selectedSafeAddress);
+  const displayName = safe?.name || shortAddr(selectedSafeAddress);
+
+  // Update header to show selected Safe
+  $('wallet-status').textContent = displayName;
+  $('switch-safe-btn')?.classList.remove('hidden');
+
+  showView('connected-view');
+  loadTrustConnections(selectedSafeAddress);
+}
+
+function showSafeSelectorView() {
+  renderSafeSelector(availableSafes);
+  showView('safe-selector-view');
+  $('switch-safe-btn')?.classList.add('hidden');
+}
+
 // ── Load trust connections ─────────────────────────────────────────────────
 async function loadTrustConnections(address) {
   $('loading-state').classList.remove('hidden');
@@ -549,22 +665,50 @@ function wireControls() {
   $('confirm-modal').addEventListener('click', e => {
     if (e.target === $('confirm-modal')) closeModal();
   });
+
+  // Switch Safe button
+  $('switch-safe-btn')?.addEventListener('click', () => {
+    showSafeSelectorView();
+  });
 }
 
 // ── Wallet connection ──────────────────────────────────────────────────────
 onWalletChange(async (address) => {
   if (!address) {
     connectedAddress = null;
-    $('wallet-status').textContent = 'Not connected';
+    availableSafes = [];
+    selectedSafeAddress = null;
     entries = [];
+    $('wallet-status').textContent = 'Not connected';
+    $('switch-safe-btn')?.classList.add('hidden');
     showView('disconnected-view');
     return;
   }
 
   connectedAddress = getAddress(address);
   $('wallet-status').textContent = shortAddr(connectedAddress);
-  showView('connected-view');
-  await loadTrustConnections(connectedAddress);
+
+  // Show loading while discovering Safes
+  showView('safe-selector-view');
+  $('safe-loading')?.classList.remove('hidden');
+  $('safe-list-content')?.classList.add('hidden');
+
+  try {
+    availableSafes = await discoverSafes(connectedAddress);
+  } catch (err) {
+    showToast(`Failed to discover accounts: ${decodeError(err)}`, 'error');
+    availableSafes = [{ address: connectedAddress, name: null, imageUrl: null, type: null }];
+  }
+
+  $('safe-loading')?.classList.add('hidden');
+  $('safe-list-content')?.classList.remove('hidden');
+
+  // If only one Safe (personal account), auto-select and skip selector
+  if (availableSafes.length === 1) {
+    selectSafe(availableSafes[0].address);
+  } else {
+    showSafeSelectorView();
+  }
 });
 
 // ── Init ───────────────────────────────────────────────────────────────────

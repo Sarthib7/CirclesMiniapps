@@ -525,6 +525,135 @@ button:active:not(:disabled), .btn:active:not(:disabled) {
 }
 .modal-actions button { flex: 1; }
 
+/* ── Safe selector ──────────────────────────────────────────────────────── */
+.safe-selector-card {
+  padding: 24px;
+}
+
+.safe-selector-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 4px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.safe-selector-desc {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 18px;
+}
+
+.safe-loading {
+  text-align: center;
+  padding: 2rem 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.safe-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.safe-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255,255,255,0.7);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.safe-item:hover {
+  background: rgba(255,255,255,0.95);
+  border-color: var(--accent-soft);
+}
+
+.safe-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--accent-soft) center/cover no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--accent);
+  border: 1px solid var(--line);
+}
+
+.safe-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.safe-name {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.safe-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.safe-type {
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--bg-b);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.safe-addr-link {
+  font-family: "JetBrains Mono", "SF Mono", monospace;
+  font-size: 11px;
+  color: var(--accent-mid);
+  text-decoration: none;
+}
+.safe-addr-link:hover { text-decoration: underline; }
+
+.badge-personal {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-mid);
+  border-radius: 999px;
+  padding: 1px 7px;
+  vertical-align: middle;
+}
+
+.safe-select-btn {
+  flex-shrink: 0;
+}
+
+.safe-empty {
+  text-align: center;
+  padding: 2rem 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+#switch-safe-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 560px) {
   h1 { font-size: 22px; }
