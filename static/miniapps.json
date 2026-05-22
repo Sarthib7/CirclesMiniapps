@@ -189,5 +189,17 @@
       "template"
     ],
     "category": "garage"
+  },
+  {
+    "slug": "quorum",
+    "name": "Quorum",
+    "logo": "",
+    "url": "https://quorum-teleshops-projects.vercel.app/",
+    "description": "A crowd plays Connect Four against a bot — every move a trust-gated, staked vote.",
+    "tags": [
+      "game",
+      "voting"
+    ],
+    "category": "garage"
   }
 ]
